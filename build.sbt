@@ -11,7 +11,7 @@ lazy val http4sVersion = "0.15.0-SNAPSHOT"
 cleanFiles <+= baseDirectory {_ / "static" / "app.js"}
 
 lazy val root = project.in(file("."))
-  .aggregate(sharedJS, sharedJVM)
+  .aggregate(sharedJS, sharedJVM, backend, frontend)
 
 lazy val shared = crossProject.in(file("shared"))
   .settings(
@@ -47,6 +47,7 @@ lazy val stage = taskKey[Unit]("stage")
 stage := {
   val fullOpt = (fullOptJS in (frontend, Compile)).value
   IO.copyFile(fullOpt.data, file("static/app.js"))
+  (assembly in backend).value
 }
 
 lazy val compileDev = taskKey[Unit]("compileDev")
