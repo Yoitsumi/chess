@@ -16,6 +16,9 @@ object Main extends ServerApp {
   val service = HttpService {
     case GET -> Root / "test" =>
       Ok("Hello, World!")
+
+    case GET -> Root =>
+      PermanentRedirect(uri("/static/index.html"))
   }
 
   val filesService = fileService(FileService.Config("static"))
