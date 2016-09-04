@@ -41,7 +41,7 @@ object Ruleset {
     case (Piece(player, Pawn, _), Tile(_, y))
       if y == player.lastRank =>
 
-      Promote(piece, Pawn) // The target type will be chosen later
+      Promote(piece, Pawn, to) // The target type will be chosen later
 
     case (Piece(player, Pawn, from), _)
       if to.y == player.opponent.pawnRank + player.opponent.forwardDirection
@@ -139,6 +139,16 @@ object Ruleset {
       dx <= 1 && dy <= 1 && board(to).forall(_.player == player.opponent)
 
 
+
+    case Promote(Piece(player, Pawn, from), _, to)
+      if (to.x - from.x).abs == 1 =>
+
+      board(to).exists(_.player == player.opponent)
+
+    case Promote(Piece(player, Pawn, from), _, to)
+      if to.x == from.x =>
+
+      board(to).isEmpty
 
     case _ => false
 

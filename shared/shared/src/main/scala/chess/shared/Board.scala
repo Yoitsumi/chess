@@ -16,16 +16,16 @@ case class Board(pieces: Set[Piece]) {
 
   def moved(move: Move): Option[Board] = move match {
     case NormalMove(piece, _) if !pieces(piece) => None
-    case Promote(piece, _) if !pieces(piece) => None
+    case Promote(piece, _, _) if !pieces(piece) => None
     case NormalMove(piece, t) =>
       val capturedPiece = this(t)
       Some(copy(pieces = (pieces - piece -- capturedPiece) + piece.copy(position = t)))
 
-    case Promote(piece, t) =>
+    case Promote(piece, newKind, t) =>
       Some(copy(
-        pieces = (pieces - piece) + piece.copy(
-          pieceKind = t,
-          position = piece.position.copy(y = piece.player.lastRank)
+        pieces = (pieces - piece -- apply(t)) + piece.copy(
+          pieceKind = newKind,
+          position = t
         )
       ))
   }

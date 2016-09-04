@@ -55,6 +55,7 @@ lazy val compileDev = taskKey[Unit]("compileDev")
 compileDev in frontend := {
   val fastOpt = (fastOptJS in (frontend, Compile)).value
   IO.copyFile(fastOpt.data, baseDirectory.value / "static" / "app.js")
+  IO.copyFile(fastOpt.data.getParentFile / "frontend-fastopt.js.map", baseDirectory.value / "static" / "frontend-fastopt.js.map")
 }
 
 artifactPath in fastOptJS := baseDirectory.value / "static" / "app.js"

@@ -1,6 +1,7 @@
 package chess.game
 
 import chess.framework._
+import chess.game.Model.PawnPromoteDialog
 import chess.shared._
 
 /**
@@ -8,9 +9,7 @@ import chess.shared._
  */
 object ChessCanvasApp extends CanvasApplication {
 
-  case class M(board: Board, selectedPiece: Option[Piece], currentPlayer: Player)
-
-  override type Model = M
+  override type Model = chess.game.Model
 
   override type Message = Nothing
 
@@ -25,41 +24,66 @@ object ChessCanvasApp extends CanvasApplication {
   val SpriteSheetXOrder = Seq(King, Queen, Bishop, Knight, Rook, Pawn)
   val SpriteSheetYOrder = Seq(White, Black)
 
-  override def initModel: ChessCanvasApp.Model = M(
+  override def initModel: Model = Model.Normal(
     board = Board.initial,
     selectedPiece = None,
     currentPlayer = White
   )
 
-  override def update(model: ChessCanvasApp.Model, message: CanvasMessage[Nothing]): M = message match {
-    case MouseDown(p, 0) =>
+  override def update(model: Model, message: CanvasMessage[Nothing]): Model = (message, model) match {
+    case (MouseDown(p, 0), m: Model.Normal) =>
       val clickedTile = Tile((p.x / TileSize).toInt, (p.y / TileSize).toInt)
-      model match {
-        case M(_, Some(Piece(_, _, t)), _)
+      m match {
+        case Model.Normal(_, Some(Piece(_, _, t)), _)
           if t == clickedTile =>
 
-          model.copy(selectedPiece = None)
+          m.copy(selectedPiece = None)
 
-        case M(board, Some(piece), player) =>
+        case Model.Normal(board, Some(piece), player) =>
           val move = Ruleset.mapMove(board, piece, clickedTile)
-          val model_? = for {
-            _ <- Some().filter(_ => Ruleset.isMoveAllowed(board, move))
-            newBoard <- board.moved(move)
-          } yield model.copy(board = newBoard, selectedPiece = None, currentPlayer = player.opponent)
-          model_? getOrElse model
+          println(s"move mapped to: $move")
+          move match {
+            case move: Promote =>
+              if (Ruleset.isMoveAllowed(board, move))
+                PawnPromoteDialog(move, m)
+              else m
 
-        case M(board, None, player) =>
+            case _ =>
+              val model_? = for {
+                _ <- Some().filter(_ => Ruleset.isMoveAllowed(board, move))
+                newBoard <- board.moved(move)
+              } yield m.copy(board = newBoard, selectedPiece = None, currentPlayer = player.opponent)
+              model_? getOrElse model
+          }
+
+        case Model.Normal(board, None, player) =>
           val model_? = for {
             piece <- board(clickedTile)
             if piece.player == player
-          } yield model.copy(selectedPiece = Some(piece))
+          } yield m.copy(selectedPiece = Some(piece))
           model_? getOrElse model
 
       }
+
+    case (MouseDown(p, 0), Model.PawnPromoteDialog(promote, Model.Normal(board, _, player))) =>
+      val clickedTile = Tile((p.x / TileSize).toInt, (p.y / TileSize).toInt)
+      val model_? = for {
+        newKind <- promoteDialogOrder.lift(clickedTile.y - 1)
+        if clickedTile.x == 8
+        newBoard <- board.moved(promote.copy(to = newKind))
+      } yield Model.Normal(newBoard, None, player.opponent)
+      model_? getOrElse model
+
     case _ => model
   }
 
-  override def view(model: ChessCanvasApp.Model): Shape = {
+  override def view(model: Model): Shape = model match {
+    case m: Model.Normal => viewNormal(m)
+    case m @ Model.PawnPromoteDialog(_, normal) =>
+      Compose(Seq(viewNormal(normal), viewPawnPromoteDialog(m)))
+  }
+
+  def viewNormal(model: Model.Normal): Shape = {
     val tiles = for {
       x <- 0 to 7
       y <- 0 to 7
@@ -69,20 +93,20 @@ object ChessCanvasApp extends CanvasApplication {
               else LightTileColor
     } yield Fill(color, Rectangle(Vector2(x, y) * TileSize, Vector2(TileSize, TileSize)))
     val pieces = for {
-      Piece(p, k, Tile(x, y)) <- model.board.pieces
+      Piece(p, k, t) <- model.board.pieces
     } yield {
         val sx = SpriteSheetXOrder.indexOf(k)
         val sy = SpriteSheetYOrder.indexOf(p)
-        Image(SpriteSheetFileName, Vector2(x, y) * TileSize + SpriteMargin, SpriteSize, Vector2(sx, sy) * SpriteSize)
+        Image(SpriteSheetFileName, tileStart(t) + SpriteMargin, SpriteSize, Vector2(sx, sy) * SpriteSize)
       }
     val selectionCircle = model.selectedPiece.map {
-      case Piece(_, _, Tile(x, y)) =>
-        Stroke("black", Circle(Vector2(x + 0.5, y + 0.5) * TileSize, TileSize / 2))
+      case Piece(_, _, t) =>
+        Stroke("black", Circle(tileCenter(t), TileSize / 2))
     }
     val availableMoves = for {
       piece <- model.selectedPiece.toSeq
-      Tile(x, y) <- Ruleset.genAllowedMoves(model.board, piece)
-    } yield Stroke("blue", Circle(Vector2(x + 0.5, y + 0.5) * TileSize, TileSize / 2))
+      t <- Ruleset.genAllowedMoves(model.board, piece)
+    } yield Stroke("blue", Circle(tileCenter(t), TileSize / 2))
 
     val statusCircle = {
       val color =
@@ -92,9 +116,30 @@ object ChessCanvasApp extends CanvasApplication {
       Fill(color, Circle(Vector2(8 * TileSize + 10, 10), 10))
     }
 
-    Compose((tiles ++ pieces ++ selectionCircle ++ availableMoves ++ Seq(statusCircle)): _*)
+    Compose(tiles ++ pieces ++ selectionCircle ++ availableMoves ++ Seq(statusCircle))
+  }
+
+  val promoteDialogOrder = Seq(Queen, Rook, Knight, Bishop)
+
+  def viewPawnPromoteDialog(m: Model.PawnPromoteDialog): Shape = {
+    val buttons = for {
+      (k, y) <- promoteDialogOrder.zipWithIndex
+    } yield viewPiece(Piece(m.move.piece.player, k, Tile(8, y + 1)))
+    Compose(buttons)
   }
 
 
+  def viewPiece(p: Piece): Shape = {
+    val sx = SpriteSheetXOrder.indexOf(p.pieceKind)
+    val sy = SpriteSheetYOrder.indexOf(p.player)
+    Image(SpriteSheetFileName, tileStart(p.position) + SpriteMargin, SpriteSize, Vector2(sx, sy) * SpriteSize)
+  }
+
+
+  def tileCenter(t: Tile): Vector2 =
+    Vector2(t.x + 0.5, t.y + 0.5) * TileSize
+
+  def tileStart(t: Tile): Vector2 =
+    Vector2(t.x, t.y) * TileSize
 
 }

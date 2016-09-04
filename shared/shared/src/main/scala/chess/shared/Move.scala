@@ -11,7 +11,7 @@ final case class NormalMove(piece: Piece, to: Tile) extends Move {
   override def player: Player = piece.player
 }
 
-final case class Promote(piece: Piece, to: PieceKind) extends Move {
+final case class Promote(piece: Piece, to: PieceKind, at: Tile) extends Move {
   override def player: Player = piece.player
 }
 

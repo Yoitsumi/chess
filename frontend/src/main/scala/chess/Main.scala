@@ -60,7 +60,7 @@ object Main extends JSApp {
   case class DrawParams(fill: Boolean = false, stroke: Boolean = false)
 
   def draw(shape: Shape, params: DrawParams): Unit = shape match {
-    case Compose(s @ _*) => s.foreach(draw(_, params))
+    case Compose(s) => s.foreach(draw(_, params))
     case Fill(c, s) =>
       context.save()
       context.fillStyle = c

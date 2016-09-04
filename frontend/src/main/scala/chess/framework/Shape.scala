@@ -5,7 +5,7 @@ package chess.framework
  */
 sealed trait Shape
 
-case class Compose(shapes: Shape*) extends Shape
+case class Compose(shapes: Seq[Shape]) extends Shape
 
 case class Circle(center: Vector2, radius: Double) extends Shape
 

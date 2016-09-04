@@ -9,4 +9,5 @@ project/boot/
 
 ## project-specific
 
-static/app.js
+static/*.js
+static/*.map
