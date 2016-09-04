@@ -16,7 +16,8 @@ lazy val root = project.in(file("."))
 lazy val shared = crossProject.in(file("shared"))
   .settings(
     name := "shared",
-    version := "0.1-SNAPSHOT"
+    version := "0.1-SNAPSHOT",
+    libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0" % "test"
   )
 
 lazy val sharedJS = shared.js

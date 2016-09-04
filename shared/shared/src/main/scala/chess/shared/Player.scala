@@ -27,6 +27,13 @@ sealed abstract class Player {
     case Black => White
   }
 
+
+  def farRookPosition: Tile =
+    Tile(0, firstRank)
+
+  def nearRookPosition: Tile =
+    Tile(7, firstRank)
+
 }
 
 case object White extends Player

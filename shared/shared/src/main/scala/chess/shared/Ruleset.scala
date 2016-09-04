@@ -68,13 +68,16 @@ object Ruleset {
   private def genQueenMoves(pos: Tile): Seq[Tile] =
     genRookMoves(pos) ++ genBishopMoves(pos)
 
-  private def genKingMoves(pos: Tile): Seq[Tile] = for {
-    x <- -1 to 1
-    y <- -1 to 1
-    if x != 0 || y != 0
-    tile = Tile(pos.x + x, pos.y + y)
-    if tile.onBoard
-  } yield tile
+  private def genKingMoves(pos: Tile): Seq[Tile] = {
+    val normal = for {
+      x <- -1 to 1
+      y <- -1 to 1
+      if x != 0 || y != 0
+      tile = Tile(pos.x + x, pos.y + y)
+      if tile.onBoard
+    } yield tile
+    Tile(2, pos.y) +: Tile(6, pos.y) +: normal
+  }
 
   private def genKnightMoves(pos: Tile): Seq[Tile] = for {
     (dx, dy) <- Seq((1, 2), (2, 1))
@@ -150,8 +153,43 @@ object Ruleset {
 
       board(to).isEmpty
 
+
+    case ShortCastling(player) =>
+      val ? = for {
+        rook <- board(player.nearRookPosition)
+        king = board.king(player)
+      } yield castlingLegal(board, king, rook)
+      ? getOrElse false
+
+    case LongCastling(player) =>
+      val ? = for {
+        rook <- board(player.farRookPosition)
+        king = board.king(player)
+      } yield castlingLegal(board, king, rook)
+      ? getOrElse false
+
     case _ => false
 
+  }
+
+  private def castlingLegal(board: Board, king: Piece, rook: Piece): Boolean = {
+    val unmoved = board.unmovedPieces(rook) && board.unmovedPieces(king)
+    val dx = (rook.position.x - king.position.x).signum
+    assert(dx != 0, "Rook and king can't be on the same file during castling!")
+    val tilesBetween = Stream.iterate(king.position){
+      case Tile(x, y) =>
+        Tile(x + dx, y)
+    } takeWhile {
+      case Tile(x, _) =>
+        x != rook.position.x
+    } take 8 tail // Will never be more than 8, ant this will make sure we don't get an infinite stream here
+
+    val notObstructed = tilesBetween.forall(board(_).isEmpty)
+    val notAttacked = (for {
+      x <- 0 to 2 map (_ * dx + king.position.x)
+    } yield isAttacked(board, Tile(x, king.position.y), king.player.opponent)).forall(!_)
+
+    unmoved && notObstructed && notAttacked
   }
 
   def isMoveAllowed(board: Board, move: Move): Boolean = {
