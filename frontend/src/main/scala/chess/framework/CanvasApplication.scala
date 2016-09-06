@@ -12,7 +12,9 @@ trait CanvasApplication {
 
   def initModel: Model
 
-  def update(model: Model, message: CanvasMessage[Message]): Model
+  def initRequests: Seq[Request[Message]] = Seq()
+
+  def update(model: Model, message: CanvasMessage[Message]): (Model, Seq[Request[Message]])
 
   def view(model: Model): Shape
 

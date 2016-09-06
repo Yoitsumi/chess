@@ -45,12 +45,23 @@ object Main extends JSApp {
 
   def update(msg: CanvasMessage[app.Message]): Unit = {
     val oldModel = model
-    model = app.update(model, msg)
+    val (newModel, requests) = app.update(model, msg)
+    requests foreach service
+    model = newModel
     if(model != oldModel) {
       console.log("Redrawing...")
       clean()
       draw(app.view(model), DrawParams())
     }
+  }
+
+  def service(req: Request[app.Message]): Unit = req match {
+    case WS.Open(url, onMessage, onOpened) =>
+      val connection = new WebSocketConnection(url)
+      onOpened foreach (_(connection))
+      connection.ws.onmessage = { e: MessageEvent =>
+        println(e)
+      }
   }
 
   def clean(): Unit = {

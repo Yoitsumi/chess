@@ -11,7 +11,7 @@ object ChessCanvasApp extends CanvasApplication {
 
   override type Model = chess.game.Model
 
-  override type Message = Nothing
+  override type Message = chess.game.Message
 
   val TileSize = 51
   val DarkTileColor = "#855624"
@@ -27,54 +27,62 @@ object ChessCanvasApp extends CanvasApplication {
   override def initModel: Model = Model.Normal(
     board = Board.initial,
     selectedPiece = None,
-    currentPlayer = White
+    currentPlayer = White,
+    connection = None
   )
 
-  override def update(model: Model, message: CanvasMessage[Nothing]): Model = (message, model) match {
+  override def initRequests = Seq(
+    WS.Open("/ws/game",
+      onMessage = (_, msg) => Message.WebSocketMessageReceived(msg),
+      onOpened = Some(Message.WebSocketOpened(_))
+    )
+  )
+
+  override def update(model: Model, message: CanvasMessage[Message]): (Model, Seq[Request[Message]]) = (message, model) match {
     case (MouseDown(p, 0), m: Model.Normal) =>
       val clickedTile = Tile((p.x / TileSize).toInt, (p.y / TileSize).toInt)
       m match {
-        case Model.Normal(_, Some(Piece(_, _, t)), _)
+        case Model.Normal(_, Some(Piece(_, _, t)), _, _)
           if t == clickedTile =>
 
-          m.copy(selectedPiece = None)
+          (m.copy(selectedPiece = None), Seq())
 
-        case Model.Normal(board, Some(piece), player) =>
+        case Model.Normal(board, Some(piece), player, _) =>
           val move = Ruleset.mapMove(board, piece, clickedTile)
           println(s"move mapped to: $move")
           move match {
             case move: Promote =>
               if (Ruleset.isMoveAllowed(board, move))
-                PawnPromoteDialog(move, m)
-              else m
+                (PawnPromoteDialog(move, m), Seq())
+              else (m, Seq())
 
             case _ =>
               val model_? = for {
                 _ <- Some().filter(_ => Ruleset.isMoveAllowed(board, move))
                 newBoard <- board.moved(move)
               } yield m.copy(board = newBoard, selectedPiece = None, currentPlayer = player.opponent)
-              model_? getOrElse model
+              (model_? getOrElse model, Seq())
           }
 
-        case Model.Normal(board, None, player) =>
+        case Model.Normal(board, None, player, _) =>
           val model_? = for {
             piece <- board(clickedTile)
             if piece.player == player
           } yield m.copy(selectedPiece = Some(piece))
-          model_? getOrElse model
+          (model_? getOrElse model, Seq())
 
       }
 
-    case (MouseDown(p, 0), Model.PawnPromoteDialog(promote, Model.Normal(board, _, player))) =>
+    case (MouseDown(p, 0), Model.PawnPromoteDialog(promote, Model.Normal(board, _, player, c))) =>
       val clickedTile = Tile((p.x / TileSize).toInt, (p.y / TileSize).toInt)
       val model_? = for {
         newKind <- promoteDialogOrder.lift(clickedTile.y - 1)
         if clickedTile.x == 8
         newBoard <- board.moved(promote.copy(to = newKind))
-      } yield Model.Normal(newBoard, None, player.opponent)
-      model_? getOrElse model
+      } yield Model.Normal(newBoard, None, player.opponent, c)
+      (model_? getOrElse model, Seq())
 
-    case _ => model
+    case _ => (model, Seq())
   }
 
   override def view(model: Model): Shape = model match {
